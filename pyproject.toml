@@ -1,0 +1,37 @@
+[project]
+name = "certification-challenge"
+version = "0.1.0"
+description = "Bible Explorer"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "jupyter>=1.1.1",
+    "langchain-cohere",
+    "langchain-community",
+    "langchain-openai",
+    "langchain-qdrant",
+    "langchain-huggingface",
+    "langgraph",
+    "nltk",
+    "numpy",
+    "ragas",
+    "unstructured",
+    "plotly",
+    "sentence_transformers",
+    "tiktoken",
+    "fastapi",
+    "uvicorn",
+    "qdrant-client",
+    "tqdm",
+    "transformers",
+    "pandas",
+    "gradio",
+    "seaborn",
+    "plotly",
+    "matplotlib",
+    "pydantic",
+    "wandb",
+    "nest_asyncio",
+    "accelerate",
+    "rich",
+]
