@@ -1,4 +1,3 @@
-
 # **Defining your Problem and Audience**
 
 Users of the King James Bible lack an intelligent, context-aware way to search, explore, and understand biblical content across books, chapters, and themes.
@@ -73,8 +72,7 @@ Agentic reasoning allows contextual memory, thematic consistency, and accurate m
 
 | Source / API                                          | Purpose                                                                                                                                                                                         |
 | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`kjv_preprocessed.csv`**                            | Core knowledge base of biblical content. Each row includes `Text`, `Book`, `Chapter`, and `Verse`, allowing semantic indexing and metadata filtering.                                           |
-| **Tavily Search API**                                 | For agent-initiated internet augmentation (e.g., cross-referencing external theological commentaries, definitions, or historical context). Used as a fallback for missing or ambiguous context. |
+| **`kjv.csv`**                            | Core knowledge base of biblical content. Each row includes `Text`, `Book`, `Chapter`, and `Verse`, allowing semantic indexing and metadata filtering.                                           |
 | **OpenAI APIs (`gpt-4.1`, `text-embedding-3-small`)** | Language generation and semantic embedding for both retrieval and agent reasoning.                                                                                                              |
 | **LangSmith**                                         | Observability and debugging of multi-agent reasoning chains.                                                                                                                                    |
 | **RAGAS**                                             | Evaluation of the RAG pipeline using metrics like **Faithfulness**, **Answer Relevance**, **Context Precision**, and **Context Recall**.                                                        |

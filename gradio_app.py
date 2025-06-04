@@ -87,7 +87,7 @@ with gr.Blocks(theme=gr.themes.Soft(), css="footer {display:none !important}") a
 
     vectorstore = create_qdrant_vectorstore(
         documents=chunked_docs_df.to_dict("records"),
-        embedding_model=get_openai_embedding_model(),
+        embedding_model=get_finetuned_embedding_model(),
         collection_name=settings.COLLECTION_NAME_FINETUNED,
     )
 
