@@ -17,6 +17,9 @@ from langchain_core.documents import Document
 from langchain_core.runnables import RunnableLambda
 from langchain_core.messages import HumanMessage
 
+from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
+from langchain_cohere import CohereRerank
+
 from rich.console import Console
 from rich.markdown import Markdown
 
@@ -27,7 +30,7 @@ class State(TypedDict):
     context: List[Document]
     response: str
 
-def build_rag_chain(vectorstore):
+def build_rag_chain(vectorstore, streaming: bool = False):
 
     class SubQueryResponse(BaseModel):
         """
@@ -54,7 +57,7 @@ def build_rag_chain(vectorstore):
 
 
     # Setup LLM + retriever
-    llm = ChatOpenAI(model=settings.OPENAI_GENERATION_MODEL)
+    llm = ChatOpenAI(model=settings.OPENAI_GENERATION_MODEL, streaming=streaming)
     retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
 
     # === PROMPTS ===
@@ -93,10 +96,19 @@ def build_rag_chain(vectorstore):
         sub_questions = parse_subquery_response(result).subQuestions
         return {**state, "sub_questions": sub_questions}
 
+    # ──────────────────────────────────────────────────────────────
+    # 🔹 Contextual-compression retriever with Cohere-Rerank v3.5
+    # ──────────────────────────────────────────────────────────────
     def retrieve_context(state):
         results = []
+        compressor = CohereRerank(model="rerank-v3.5", top_n=10)
+        compression_retriever = ContextualCompressionRetriever(
+            base_compressor=compressor,
+            base_retriever=retriever,
+            search_kwargs={"k": 5},
+        )
         for q in state["sub_questions"]:
-            docs = retriever.invoke(q)
+            docs = compression_retriever.invoke(q)
             results.append({"question": q, "docs": docs})
         return {**state, "retrieval_results": results}
 

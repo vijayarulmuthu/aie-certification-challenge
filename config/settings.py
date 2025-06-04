@@ -18,7 +18,7 @@ MAX_TOKENS =  512
 VERSES_PER_CHUNK = 8
 TOKENIZER_NAME = "bert-base-uncased"
 VECTOR_DIM_BASELINE = 1536
-VECTOR_DIM_FINETUNED = 768
+VECTOR_DIM_FINETUNED = 1536
 
 OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
 OPENAI_EVAL_MODEL = "gpt-4.1"
@@ -35,4 +35,4 @@ HF_MODEL_NAME = "Snowflake/snowflake-arctic-embed-m"
 
 HF_FINETUNED_MODEL_NAME = f"{HF_USERNAME}/{HF_REPO_NAME}-{uuid.uuid4()}"
 
-HF_FINAL_FINETUNED_MODEL_NAME = "vijayarulmuthu/finetuned_arctic_kjv_bible-0032306b-7760-4502-aeec-80a62c6097e6"
+HF_FINAL_FINETUNED_MODEL_NAME = "vijayarulmuthu/finetuned_arctic_kjv_bible-f2989784-6473-4f78-a30e-f532a6360101"
