@@ -39,14 +39,13 @@ Users will save **hours of manual cross-referencing**, gain **deep thematic insi
 
 | Layer                   | Tool                                    | Rationale                                                                              |
 | ----------------------- | --------------------------------------- | -------------------------------------------------------------------------------------- |
-| **LLM**                 | `gpt-4.1`                               | High performance in language generation, handles abstract religious themes with nuance |
+| **LLM**                 | OpenAI (`gpt-4o`, `gpt-4.1-mini`)       | High performance in language generation, handles abstract religious themes with nuance |
 | **Embedding Model**     | `text-embedding-3-small`                | Accurate, fast, OpenAI-supported, and highly cost-effective                            |
 | **Orchestration**       | `LangGraph`                             | Ideal for agentic reasoning and stateful multi-step retrieval/summarization            |
 | **Vector DB**           | `Qdrant`                                | Fast, production-ready, with robust metadata filtering (e.g., by book, chapter)        |
-| **Monitoring**          | `LangSmith`                             | Essential for traceable observability and debugging of RAG flows                       |
 | **Evaluation**          | `RAGAS`                                 | Standard for retrieval-based evaluation (faithfulness, precision, relevance, etc.)     |
-| **UI**                  | `Chainlit`                              | Streamlined UI for multi-turn semantic chat, markdown-friendly and developer-friendly  |
-| **Serving & Inference** | `FastAPI + Docker + Hugging Face Space` | Reliable, scalable, and community-shareable deployment setup                           |
+| **UI**                  | `Gradio`                                | Streamlined UI for multi-turn semantic chat, markdown-friendly and developer-friendly  |
+| **Serving & Inference** | `Docker + Hugging Face Space`           | Reliable, scalable, and community-shareable deployment setup                           |
 
 
 ### **Agent Usage and Agentic Reasoning**

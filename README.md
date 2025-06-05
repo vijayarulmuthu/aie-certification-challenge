@@ -23,7 +23,6 @@ Bible Explorer is a Retrieval-Augmented Generation (RAG) application that allows
 | **Agent Flow** | LangGraph Agentic RAG Graph        | Multi-stage processing: Decompose → Retrieve → Summarize      |
 | **LLMs**       | OpenAI (`gpt-4o`, `gpt-4.1-mini`)  | Used for decomposition and summarization                      |
 | **Retrieval**  | Qdrant VectorStore + Cohere Rerank | Retrieves semantically similar Bible passages with re-ranking |
-| **Data Store** | Chunked CSV + Qdrant DB            | Stores indexed Bible verse chunks and corpus metadata         |
 | **Evaluation** | RAGAS + Recall\@K                  | Evaluates output faithfulness and retrieval quality           |
 
 ---
@@ -189,25 +188,6 @@ Objectively measure the quality and reliability of the RAG pipeline outputs.
 
 * 📚 Combines all retrieved contexts.
 * 🧵 Applies chain-of-thought summarization using OpenAI.
-
----
-
-## 🗃️ Vector Store & Embeddings
-
-| Component            | Model                               | Description                                    |
-| -------------------- | ----------------------------------- | ---------------------------------------------- |
-| **Vector Store**     | Qdrant                              | Local persistence for Bible passage embeddings |
-| **Embedding Models** | OpenAI or Fine-Tuned HF Model       | Used for vector indexing and retrieval         |
-| **Passage Chunking** | Token-based (max token + verse cap) | Combines nearby verses for meaningful passages |
-
----
-
-## 🧪 Evaluation
-
-| Tool         | Metric                                                  | Purpose                                     |
-| ------------ | ------------------------------------------------------- | ------------------------------------------- |
-| RAGAS        | Faithfulness, Factual Correctness, Context Recall, etc. | Measures output alignment with ground truth |
-| IR Evaluator | Recall\@k, MRR\@k, MAP                                  | Measures embedding retrieval quality        |
 
 ---
 
