@@ -155,16 +155,105 @@ Objectively measure the quality and reliability of the RAG pipeline outputs.
 * **Markdown & Hyperlinks:**
   Outputs are user-friendly and citeable for teaching, research, or study group settings.
 
-* **For Bible Study Leaders / Theologians / Educators:**
+* **Bible Study Leaders / Theologians / Educators:**
 
   * Get multi-faceted, cross-book answers to deep questions.
   * Save time vs. manual study.
   * Trust in faithfulness and grounding via strong evaluation metrics.
 
-* **For Developers:**
+* **Conclusion:**
 
   * Highly modular, extensible stack (LangGraph, Qdrant, OpenAI, Cohere, RAGAS).
   * Easily test new retrieval, reranking, or evaluation strategies.
+
+---
+
+## 📊 **RAGAS Evaluation Summary: Baseline vs. Fine-Tuned RAG**
+
+| Metric                             | Baseline Score | Finetuned Score | % Change | Insights                                                                 |
+|------------------------------------|----------------|-----------------|----------|--------------------------------------------------------------------------|
+| context_recall                     | 0.93           | 0.975           | +4.84%   | Fine-tuned model retrieves more relevant context consistently.            |
+| faithfulness                       | 0.85           | 0.80            | -5.88%   | Slight drop in staying close to source; may be due to abstraction.        |
+| factual_correctness (mode=F1)     | 0.32           | 0.165           | -48.44%  | Major drop; factual hallucinations increased post-finetuning.             |
+| answer_relevancy                   | 0.84           | 0.825           | -1.79%   | Minor decrease; fine-tuned answers are still topically aligned.           |
+| context_entity_recall             | 0.72           | 0.90            | +25.00%  | Big gain; fine-tuned model is much better at identifying key entities.    |
+| noise_sensitivity (mode=relevant) | 0.095          | 0.04            | -57.89%  | Strong improvement; less distracted by irrelevant content.                |
+
+
+---
+
+## 📌 **Insights: RAGAS Metrics Interpretation**
+
+### 🔼 Improved Metrics
+
+- **context_recall (+4.84%)**
+  - The fine-tuned model retrieves more relevant passages with higher consistency.
+  - This suggests improved alignment between embeddings and document content.
+
+- **context_entity_recall (+25.00%)**
+  - Fine-tuning helped the model focus better on key biblical entities (e.g., people, books, places).
+  - This is valuable for question answering tasks grounded in specific theological references.
+
+- **noise_sensitivity (mode=relevant) (-57.89%)**
+  - A significant reduction in retrieving irrelevant or distracting content.
+  - Indicates better semantic discrimination by the fine-tuned model.
+
+---
+
+### ⚖️ Stable Metric
+
+- **answer_relevancy (-1.79%)**
+  - Slight drop, but within tolerance. The answers remain mostly aligned with the user's question.
+  - Suggests that despite changes in retrieval, coherence in responses is preserved.
+
+---
+
+### 🔽 Regressed Metrics
+
+- **faithfulness (-5.88%)**
+  - Minor decrease in how well answers adhere to source material.
+  - May indicate increased abstraction or paraphrasing behavior in the generation phase.
+
+- **factual_correctness (mode=F1) (-48.44%)**
+  - Major decline in factual accuracy.
+  - Signals the need for enhanced control mechanisms (e.g., factuality re-rankers or answer verification) during generation.
+
+---
+
+## 📈 **Recommended Next Steps**
+
+1. **Improve Factual Correctness:**
+
+   * Use RAGAS-generated hallucination examples to fine-tune the model on factual answering.
+   * Add NLI (Natural Language Inference) or factual reranking stages post-generation.
+
+2. **Boost Faithfulness:**
+
+   * Modify prompt instructions to enforce answer grounding.
+   * Add more "chain-of-thought + evidence alignment" examples during fine-tuning.
+
+3. **RAG Optimization:**
+
+   * Consider reranking retrieved chunks or increasing `k` for retrieval.
+   * Use sentence-level retrieval or chunk-fusion if entity recall is crucial.
+
+4. **Instrumentation:**
+
+   * Integrate [RAGAS feedback loop](https://github.com/explodinggradients/ragas) for continuous evaluation & regression tracking.
+---
+
+## 🧰 Key Python Modules
+
+| File                          | Purpose                                 |
+| ----------------------------- | --------------------------------------- |
+| `rag_chain.py`                | LangGraph-based orchestration           |
+| `question_generator.py`       | Generates QA training samples           |
+| `chunking.py`                 | Chunks verses into token-safe passages  |
+| `evaluate.py`                 | Computes Recall\@K, MAP, MRR            |
+| `ragas_evaluator.py`          | Runs RAGAS metrics                      |
+| `finetune.py`                 | Prepares and fine-tunes embedding model |
+| `qdrant_vectorstore.py`       | Manages Qdrant ingestion/loading        |
+| `golden_testset_generator.py` | Generates gold-standard evaluation set  |
 
 
 ---
@@ -188,21 +277,6 @@ Objectively measure the quality and reliability of the RAG pipeline outputs.
 
 * 📚 Combines all retrieved contexts.
 * 🧵 Applies chain-of-thought summarization using OpenAI.
-
----
-
-## 🧰 Key Python Modules
-
-| File                          | Purpose                                 |
-| ----------------------------- | --------------------------------------- |
-| `rag_chain.py`                | LangGraph-based orchestration           |
-| `question_generator.py`       | Generates QA training samples           |
-| `chunking.py`                 | Chunks verses into token-safe passages  |
-| `evaluate.py`                 | Computes Recall\@K, MAP, MRR            |
-| `ragas_evaluator.py`          | Runs RAGAS metrics                      |
-| `finetune.py`                 | Prepares and fine-tunes embedding model |
-| `qdrant_vectorstore.py`       | Manages Qdrant ingestion/loading        |
-| `golden_testset_generator.py` | Generates gold-standard evaluation set  |
 
 ---
 
