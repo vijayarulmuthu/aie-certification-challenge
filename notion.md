@@ -1,8 +1,12 @@
+# AI Engineering Bootcamp - Certification Challenge
+
+[Notebook](https://drive.google.com/file/d/1TzBp6et9waUfH6ZUMiviDw3bSxfUj8ow/view?usp=sharing)  [GitHub](https://github.com/vijayarulmuthu/aie-certification-challenge)  [Demo](https://huggingface.co/spaces/vijayarulmuthu/AIE-Certification-Challenge)  [Video](https://www.loom.com/looms/videos)
+
 # **Defining your Problem and Audience**
 
 Users of the King James Bible lack an intelligent, context-aware way to search, explore, and understand biblical content across books, chapters, and themes.
 
-### **Problem Context and Target Audience**
+## **Problem Context and Target Audience**
 
 The target user is a Bible Study Leader, Theology Student, or Christian Educator who regularly engages with Scripture for research, teaching, or sermon preparation.
 
@@ -22,7 +26,7 @@ By automating semantic search, cross-referencing, and thematic summarization, we
 
 # **Propose a Solution**
 
-### **Proposed Solution & User Experience**
+## **Proposed Solution & User Experience**
 
 We propose building an **Agentic RAG-powered Bible Explorer**: an interactive semantic search and summarization tool for users to ask complex, open-ended questions about the Bible and receive coherent, faith-aligned, multi-verse responses.
 
@@ -35,7 +39,7 @@ The system will retrieve semantically relevant verses across books, apply agenti
 Users will save **hours of manual cross-referencing**, gain **deep thematic insight**, and improve the quality of their lessons or sermons.
 
 
-### **Tools and Architecture Stack**
+## **Tools and Architecture Stack**
 
 | Layer                   | Tool                                    | Rationale                                                                              |
 | ----------------------- | --------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -48,7 +52,7 @@ Users will save **hours of manual cross-referencing**, gain **deep thematic insi
 | **Serving & Inference** | `Docker + Hugging Face Space`           | Reliable, scalable, and community-shareable deployment setup                           |
 
 
-### **Agent Usage and Agentic Reasoning**
+## **Agent Usage and Agentic Reasoning**
 
 We will integrate **two LangGraph-based agents**:
 
@@ -67,19 +71,9 @@ Agentic reasoning allows contextual memory, thematic consistency, and accurate m
 
 # **Dealing with the Data**
 
-### **Data Sources and External APIs**
+## **Default Chunking Strategy**
 
-| Source / API                                          | Purpose                                                                                                                                                                                         |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`kjv.csv`**                            | Core knowledge base of biblical content. Each row includes `Text`, `Book`, `Chapter`, and `Verse`, allowing semantic indexing and metadata filtering.                                           |
-| **OpenAI APIs (`gpt-4.1`, `text-embedding-3-small`)** | Language generation and semantic embedding for both retrieval and agent reasoning.                                                                                                              |
-| **LangSmith**                                         | Observability and debugging of multi-agent reasoning chains.                                                                                                                                    |
-| **RAGAS**                                             | Evaluation of the RAG pipeline using metrics like **Faithfulness**, **Answer Relevance**, **Context Precision**, and **Context Recall**.                                                        |
-
-
-### **Default Chunking Strategy**
-
-#### **Strategy**: *Semantic Chunking with Context-Aware Merging*
+### **Strategy**: *Semantic Chunking with Context-Aware Merging*
 
 * **Step 1**: Start with verse-level entries as base units (each row in `kjv_preprocessed.csv`)
 * **Step 2**: Group **2–5 adjacent verses** together if:
@@ -88,20 +82,154 @@ Agentic reasoning allows contextual memory, thematic consistency, and accurate m
   * They form a logical thematic unit (measured via cosine similarity threshold ≥ 0.8 between embeddings)
 * **Step 3**: Ensure the resulting chunk is ≤ 256 tokens for efficient embedding
 
-#### **Why This Strategy?**
+### **Why This Strategy?**
 
 * Verse-level granularity is too small for meaningful semantic search.
 * Chapter-level is often too broad or diluted.
 * Grouping adjacent verses allows richer semantic context while preserving theological integrity and referential clarity.
 * This also improves **context recall** and **faithfulness** in downstream RAG outputs, which is critical in religious settings where misinterpretation must be avoided.
 
+
+# 🔁 High-Level Architecture
+
+![Alt text](./data/architecture.png)
+
+## 🟧 **1. Feature Extraction Pipeline**
+
+**Purpose:**
+Transform raw Bible data into a structured, machine-friendly format.
+
+### Steps:
+
+* **Load Raw KJV TSV File:**
+
+  * Reads the King James Bible (`kjv.tsv`), which contains references and text for each verse.
+
+* **Parse Book, Chapter & Verse:**
+
+  * Splits each verse’s “Reference” (e.g., “John 3:16”) into `Book`, `Chapter`, `Verse`.
+  * Handles special book names and edge cases.
+
+* **Export Cleaned Data:**
+
+  * Produces a well-structured CSV (`kjv_preprocessed.csv`) ready for downstream semantic chunking and embedding.
+
+## 🟦 **2. Ingest Pipeline**
+
+**Purpose:**
+Convert cleaned verse data into semantic, vectorized chunks for efficient retrieval.
+
+### Steps:
+
+* **Chunk Verses:**
+
+  * Groups adjacent verses (e.g., 8 at a time), within token and thematic constraints, to form meaningful passages for search.
+
+* **Embedding for Chunked Verses:**
+
+  * Uses the **OpenAI embedding model** (`text-embedding-3-small`) to generate dense vector embeddings for each passage.
+
+* **Qdrant Ingestion:**
+
+  * Embeds and metadata are indexed in a **Qdrant** vector database.
+  * Supports fast similarity search (HNSW or other algorithms).
+
+
+## 🟥 **3. RAG Pipeline (Retrieval-Augmented Generation)**
+
+**Purpose:**
+Answer complex, nuanced user questions about the Bible using multi-agent reasoning and retrieval.
+
+### Steps:
+
+* **User’s Question:**
+
+  * The user asks an open-ended, possibly multi-part question.
+
+* **RAG Chain (Decompose):**
+
+  * An **LLM agent** (using `gpt-4.1-mini`) breaks the question into simpler sub-questions for more targeted retrieval.
+
+* **Embedding-based Retrieval:**
+
+  * For each sub-question, similar semantic chunks are fetched from Qdrant using vector similarity.
+
+* **LLM-based Semantic Reranker (Cohere):**
+
+  * The set of retrieved passages is **reranked** using **Cohere’s LLM-based reranker** for higher precision and better alignment with the query intent.
+  * Ensures the most relevant contexts are passed to the summarizer.
+
+* **Summarize:**
+
+  * Another LLM agent (again `gpt-4.1-mini`) combines the most relevant passages, using chain-of-thought prompting, to produce a coherent, markdown-formatted answer.
+  * Output includes theme grouping, book-level summaries, and possibly citations.
+
+* **Final Answer:**
+
+  * Returned to the user in rich markdown for clarity (e.g., bold, links).
+
+## 🟨 **4. Evaluation Pipeline using RAGAS**
+
+**Purpose:**
+Objectively measure the quality and reliability of the RAG pipeline outputs.
+
+### Steps:
+
+* **Generate Golden Testset:**
+
+  * Use LLMs to create a reference set of gold questions and answers, grounded in Bible content.
+
+* **RAGAS Evaluation:**
+
+  * Run the full RAG pipeline on these test queries.
+  * Compute **RAGAS metrics**:
+
+    * `context_recall`: Did the model retrieve the right passages?
+    * `faithfulness`: Are answers grounded in context?
+    * `factual_correctness`, `entity_recall`, `noise_sensitivity`: Further fine-grained measures.
+
+* **Review Metrics:**
+
+  * Scores are tabulated and visualized (e.g., bar charts).
+  * Used to compare **baseline vs. fine-tuned** embedding models, track improvements, and guide further tuning.
+
+## 🔑 **Key Architecture Advantages**
+
+* **Semantic & Agentic:**
+  Each query is decomposed and answered using a blend of retrieval and reasoning, not just keyword search.
+
+* **Composable Agents:**
+  Modular pipeline: decompose → retrieve → rerank → summarize.
+  Each agent can be tuned or swapped independently.
+
+* **LLM and Embedding Agnostic:**
+  Easily swap OpenAI models, Qdrant for Pinecone/FAISS, or Cohere for other rerankers.
+
+* **Rich Evaluation Loop:**
+  Built-in, standards-based QA ensures that improvements (or regressions) are measurable and actionable.
+
+* **Markdown & Hyperlinks:**
+  Outputs are user-friendly and citeable for teaching, research, or study group settings.
+
+* **Bible Study Leaders / Theologians / Educators:**
+
+  * Get multi-faceted, cross-book answers to deep questions.
+  * Save time vs. manual study.
+  * Trust in faithfulness and grounding via strong evaluation metrics.
+
+* **Conclusion:**
+
+  * Highly modular, extensible stack (LangGraph, Qdrant, OpenAI, Cohere, RAGAS).
+  * Easily test new retrieval, reranking, or evaluation strategies.
+
+
 # **Summary**
 
 Here's a detailed summary report comparing **Baseline** and **Fine-tuned** RAG models:
 
----
-
 ## 📊 **RAGAS Evaluation Summary: Baseline vs. Fine-Tuned RAG**
+
+![Alt text](./data/architecture.png)
 
 | Metric                             | Baseline Score | Finetuned Score | % Change | Insights                                                                 |
 |------------------------------------|----------------|-----------------|----------|--------------------------------------------------------------------------|
@@ -112,8 +240,6 @@ Here's a detailed summary report comparing **Baseline** and **Fine-tuned** RAG m
 | context_entity_recall             | 0.72           | 0.90            | +25.00%  | Big gain; fine-tuned model is much better at identifying key entities.    |
 | noise_sensitivity (mode=relevant) | 0.095          | 0.04            | -57.89%  | Strong improvement; less distracted by irrelevant content.                |
 
-
----
 
 ## 📌 **Insights: RAGAS Metrics Interpretation**
 
@@ -131,15 +257,11 @@ Here's a detailed summary report comparing **Baseline** and **Fine-tuned** RAG m
   - A significant reduction in retrieving irrelevant or distracting content.
   - Indicates better semantic discrimination by the fine-tuned model.
 
----
-
 ### ⚖️ Stable Metric
 
 - **answer_relevancy (-1.79%)**
   - Slight drop, but within tolerance. The answers remain mostly aligned with the user's question.
   - Suggests that despite changes in retrieval, coherence in responses is preserved.
-
----
 
 ### 🔽 Regressed Metrics
 
@@ -150,8 +272,6 @@ Here's a detailed summary report comparing **Baseline** and **Fine-tuned** RAG m
 - **factual_correctness (mode=F1) (-48.44%)**
   - Major decline in factual accuracy.
   - Signals the need for enhanced control mechanisms (e.g., factuality re-rankers or answer verification) during generation.
-
----
 
 ## 📈 **Recommended Next Steps**
 

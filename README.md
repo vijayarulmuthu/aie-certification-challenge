@@ -170,6 +170,8 @@ Objectively measure the quality and reliability of the RAG pipeline outputs.
 
 ## 📊 **RAGAS Evaluation Summary: Baseline vs. Fine-Tuned RAG**
 
+![Alt text](./data/metrics-comparision.png)
+
 | Metric                             | Baseline Score | Finetuned Score | % Change | Insights                                                                 |
 |------------------------------------|----------------|-----------------|----------|--------------------------------------------------------------------------|
 | context_recall                     | 0.93           | 0.975           | +4.84%   | Fine-tuned model retrieves more relevant context consistently.            |
@@ -260,12 +262,12 @@ Objectively measure the quality and reliability of the RAG pipeline outputs.
 
 ## 🧠 RAG Graph Nodes
 
-### 1. `decompose`
+### 1. `Decompose`
 
 * 🔧 Uses OpenAI (`gpt-4.1-mini`) to split multi-part questions into independent sub-questions.
 * 📤 Output: `sub_questions: List[str]`
 
-### 2. `retrieve`
+### 2. `Retrieve`
 
 * 🔍 Retrieves top-K results for each sub-question.
 * 💡 Uses:
@@ -273,7 +275,7 @@ Objectively measure the quality and reliability of the RAG pipeline outputs.
   * `vectorstore.as_retriever(k=5)`
   * `ContextualCompressionRetriever` with `Cohere Rerank v3.5`
 
-### 3. `summarize`
+### 3. `Summarize`
 
 * 📚 Combines all retrieved contexts.
 * 🧵 Applies chain-of-thought summarization using OpenAI.
