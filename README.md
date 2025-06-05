@@ -1,6 +1,6 @@
 # 📖 Bible Explorer — RAG-Powered Question Answering App
 
-Bible Explorer is a Retrieval-Augmented Generation (RAG) application that allows users to ask deep questions about the Bible and receive contextualized, scholarly responses. It uses fine-tuned embeddings, LangGraph orchestration, and Gradio UI.
+Bible Explorer is a Retrieval-Augmented Generation (RAG) application that allows users to ask deep questions about the Bible and receive contextualized, scholarly responses. It uses LangGraph for orchestration, Cohere Rerank for contextual compression, OpenAI models for query decomposition and summarization, fine-tuned embeddings, and Gradio UI.
 
 ---
 
@@ -15,34 +15,89 @@ Bible Explorer is a Retrieval-Augmented Generation (RAG) application that allows
 
 ---
 
-## 🐳 Running with Docker
+## 🧱 System Components
 
-### 📦 Step 1: Build the Docker image
+| Layer          | Component                          | Purpose                                                       |
+| -------------- | ---------------------------------- | ------------------------------------------------------------- |
+| **Input**      | User Query                         | Natural language input from user                              |
+| **Agent Flow** | LangGraph Agentic RAG Graph        | Multi-stage processing: Decompose → Retrieve → Summarize      |
+| **LLMs**       | OpenAI (`gpt-4o`)                  | Used for decomposition and summarization                      |
+| **Retrieval**  | Qdrant VectorStore + Cohere Rerank | Retrieves semantically similar Bible passages with re-ranking |
+| **Data Store** | Chunked CSV + Qdrant DB            | Stores indexed Bible verse chunks and corpus metadata         |
+| **Evaluation** | RAGAS + Recall\@K                  | Evaluates output faithfulness and retrieval quality           |
 
-```bash
-docker build -t bible-explorer .
+---
+
+## 🔁 High-Level Flow
+
+```text
+User Query
+   │
+   ▼
+[LangGraph AgenticRAG Graph]
+   ├─> [Decompose Node] ──> Sub-Questions via OpenAI
+   ├─> [Retrieve Node] ───> Qdrant + CohereRerank Contextual Retrieval
+   └─> [Summarize Node] ──> Final Answer via OpenAI Chain-of-Thought
+
+   ▼
+[Final Synthesized Answer]
 ```
 
-### 🚀 Step 2: Run the container
+---
 
-```bash
-docker run -it --rm -p 7860:7860 --env-file .env bible-explorer
-```
+## 🧠 RAG Graph Nodes
 
-> Visit the app at: [http://localhost:7860](http://localhost:7860)
+### 1. `decompose`
 
-### 🛠 Optional: Bind your cache or data
+* 🔧 Uses OpenAI (`gpt-4o`) to split multi-part questions into independent sub-questions.
+* 📤 Output: `sub_questions: List[str]`
 
-Mount a volume if you want persistent caching:
+### 2. `retrieve`
 
-```bash
-docker run -it --rm \
-  -v $PWD/cache:/home/user/app/cache \
-  -v $PWD/data:/home/user/app/data \
-  -p 7860:7860 \
-  --env-file .env \
-  bible-explorer
-```
+* 🔍 Retrieves top-K results for each sub-question.
+* 💡 Uses:
+
+  * `vectorstore.as_retriever(k=5)`
+  * `ContextualCompressionRetriever` with `Cohere Rerank v3.5`
+
+### 3. `summarize`
+
+* 📚 Combines all retrieved contexts.
+* 🧵 Applies chain-of-thought summarization using OpenAI.
+
+---
+
+## 🗃️ Vector Store & Embeddings
+
+| Component            | Model                               | Description                                    |
+| -------------------- | ----------------------------------- | ---------------------------------------------- |
+| **Vector Store**     | Qdrant                              | Local persistence for Bible passage embeddings |
+| **Embedding Models** | OpenAI or Fine-Tuned HF Model       | Used for vector indexing and retrieval         |
+| **Passage Chunking** | Token-based (max token + verse cap) | Combines nearby verses for meaningful passages |
+
+---
+
+## 🧪 Evaluation
+
+| Tool         | Metric                                                  | Purpose                                     |
+| ------------ | ------------------------------------------------------- | ------------------------------------------- |
+| RAGAS        | Faithfulness, Factual Correctness, Context Recall, etc. | Measures output alignment with ground truth |
+| IR Evaluator | Recall\@k, MRR\@k, MAP                                  | Measures embedding retrieval quality        |
+
+---
+
+## 🧰 Key Python Modules
+
+| File                          | Purpose                                 |
+| ----------------------------- | --------------------------------------- |
+| `rag_chain.py`                | LangGraph-based orchestration           |
+| `question_generator.py`       | Generates QA training samples           |
+| `chunking.py`                 | Chunks verses into token-safe passages  |
+| `evaluate.py`                 | Computes Recall\@K, MAP, MRR            |
+| `ragas_evaluator.py`          | Runs RAGAS metrics                      |
+| `finetune.py`                 | Prepares and fine-tunes embedding model |
+| `qdrant_vectorstore.py`       | Manages Qdrant ingestion/loading        |
+| `golden_testset_generator.py` | Generates gold-standard evaluation set  |
 
 ---
 
@@ -91,11 +146,7 @@ Create a `.env` file with:
 
 ```env
 OPENAI_API_KEY=your_openai_key
-DATASET_PREFIX=kjv
-COLLECTION_NAME_BASELINE=kjv_baseline
-COLLECTION_NAME_FINETUNED=kjv_finetuned
-VECTOR_DIM_BASELINE=1536
-VECTOR_DIM_FINETUNED=1536
+COHERE_API_KEY=your_cohere_api_key
 ```
 
 ---
