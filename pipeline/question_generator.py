@@ -1,4 +1,16 @@
-# pipeline/question_generator.py
+"""
+pipeline/question_generator.py
+
+This module uses an OpenAI language model to generate question-answer pairs (QA) from a
+collection of documents. The questions are directly answerable from the content of each
+document. It is designed to support dataset creation for training and evaluating retrieval-augmented
+generation (RAG) systems.
+
+Key features:
+- Uses structured prompts to generate multiple questions per document
+- Strictly enforces JSON output formatting
+- Asynchronous batch processing with concurrency limits
+"""
 
 import uuid
 import asyncio
@@ -12,10 +24,10 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from config import settings
 
-# Configure the zero-temperature LLM for generation
+# Initialize the LLM for question generation with deterministic behavior
 llm = ChatOpenAI(model=settings.OPENAI_GENERATION_MODEL, temperature=0)
 
-# QA prompt template with JSON output
+# Define the prompt template with strict JSON output enforcement
 messages = [
     (
         "system", "You are a helpful assistant that generates questions from a given context.",
@@ -49,7 +61,16 @@ async def process_document(
     n_questions: int
 ) -> Tuple[Dict[str, str], Dict[str, str]]:
     """
-    Generate n_questions for a single document and return mappings.
+    Process a single document to generate `n_questions` and return question-ID and mapping.
+
+    Args:
+        document (Document): LangChain Document object with `.page_content` and `.metadata["id"]`
+        n_questions (int): Number of questions to generate for this document
+
+    Returns:
+        Tuple[Dict[str, str], Dict[str, str]]:
+            - {question_id: question_text}
+            - {question_id: document_id}
     """
     if not document.page_content or len(document.page_content.strip()) < 20:
         print(f"Warning: Document content too short or empty: {document.page_content[:30]}...")
@@ -60,6 +81,7 @@ async def process_document(
         return {}, {}
 
     try:
+        # Generate questions using the prompt chain
         questions_output = await chain.ainvoke({
             "context": document.page_content,
             "n_questions": n_questions
@@ -70,6 +92,7 @@ async def process_document(
             print(f"Warning: Empty response from LLM for document: {document.metadata.get('id', 'unknown')}")
             return {}, {}
 
+        # Parse the strict JSON output
         try:
             parsed_json = json.loads(content)
             question_list = parsed_json.get("questions", [])
@@ -86,6 +109,7 @@ async def process_document(
         doc_relevant_docs = {}
         doc_id = document.metadata.get("id", "")
 
+        # Assign unique question IDs and associate with document
         for question in question_list:
             if question and isinstance(question, str):
                 q_id = str(uuid.uuid4())
@@ -105,19 +129,24 @@ async def generate_qa_dataset(
     concurrency_limit: int = 5
 ) -> Tuple[Dict[str, str], Dict[str, str]]:
     """
-    Generate QA pairs for a list of documents asynchronously.
-    
+    Asynchronously generate question-answer pairs for a list of documents.
+
     Args:
-        documents: List of documents to process
-        n_questions: Number of questions to generate per document
-        desc: Description for the progress bar
-        concurrency_limit: Maximum number of concurrent API calls
+        documents (List[Document]): LangChain documents with page_content and metadata['id']
+        n_questions (int): Number of questions to generate per document
+        desc (str): Description for tqdm progress bar
+        concurrency_limit (int): Maximum number of concurrent API calls
+
+    Returns:
+        Tuple[Dict[str, str], Dict[str, str]]:
+            - All question ID → question mappings
+            - All question ID → document ID mappings
     """
     if not documents:
         print("Warning: Empty document list provided to generate_qa_dataset")
         return {}, {}
 
-    # Check that all documents have IDs
+    # Warn if any document is missing an ID
     missing_ids = sum(1 for doc in documents if "id" not in doc.metadata)
     if missing_ids > 0:
         print(f"Warning: {missing_ids} documents are missing IDs in their metadata")
@@ -125,17 +154,15 @@ async def generate_qa_dataset(
     all_questions = {}
     all_relevant_docs = {}
 
-    # Use a semaphore to limit concurrency
+    # Use asyncio.Semaphore to throttle concurrent API calls
     semaphore = asyncio.Semaphore(concurrency_limit)
 
     async def bounded_process_document(doc):
         async with semaphore:
             return await process_document(doc, n_questions)
 
-    # Create tasks with bounded concurrency
     tasks = [bounded_process_document(doc) for doc in documents]
 
-    # Process tasks as they complete
     failures = 0
     for task in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc=desc):
         try:

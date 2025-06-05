@@ -1,16 +1,37 @@
-# core/dataset_builder.py
+"""
+core/dataset_builder.py
+
+This module provides utility functions to prepare, split, and persist datasets
+used for training and evaluating fine-tuned RAG pipelines. It supports:
+- Assigning UUIDs to LangChain Documents
+- Splitting datasets into train/val/test
+- Creating corpus maps for retrieval
+- Caching/loading dataset splits in JSONL-style format
+
+Dependencies:
+- langchain_core.documents.Document
+"""
 
 import os
 import uuid
 import json
-
 from typing import List, Tuple, Dict, Optional
 
 from langchain_core.documents import Document
 
+
 def assign_uuids(documents: List[Document]) -> List[Document]:
     """
-    Assign a unique UUID to each document for identification during fine-tuning.
+    Assigns a unique UUID to each document in the list.
+
+    This ensures that every document has a persistent identifier stored in its metadata.
+    Useful when constructing training corpora, tracking retrieval, or mapping context in evaluation.
+
+    Args:
+        documents (List[Document]): List of LangChain Document objects
+
+    Returns:
+        List[Document]: Same list with 'id' key added to each doc's metadata
     """
     seen = set()
     for doc in documents:
@@ -28,10 +49,18 @@ def split_documents(
     val_frac: float = 0.125
 ) -> Tuple[List[Document], List[Document], List[Document]]:
     """
-    Split documents into train / val / test sets.
+    Splits a list of documents into train, validation, and test subsets.
+
+    Args:
+        documents (List[Document]): Full list of documents
+        train_frac (float): Fraction of data for training set
+        val_frac (float): Fraction of data for validation set
 
     Returns:
-        (train_docs, val_docs, test_docs)
+        Tuple[List[Document], List[Document], List[Document]]:
+            - Training documents
+            - Validation documents
+            - Test documents (remaining)
     """
     n = len(documents)
     train_end = int(train_frac * n)
@@ -46,23 +75,37 @@ def split_documents(
 
 def build_corpus_map(documents: List[Document]) -> Dict[str, str]:
     """
-    Build a map of {doc_id: page_content} for all documents.
+    Builds a corpus dictionary mapping document IDs to content.
+
+    This is used by retrievers and QA evaluators (e.g., RAGAS) to reference ground-truth passages.
+
+    Args:
+        documents (List[Document]): List of documents with metadata['id'] present
+
+    Returns:
+        Dict[str, str]: Mapping from document ID to page content
     """
     return {
         doc.metadata["id"]: doc.page_content for doc in documents
     }
 
 
-def load_cached_dataset(cache_dir: str, split_name: str) -> Optional[Tuple[Dict[str, str], Dict[str, str]]]:
+def load_cached_dataset(cache_dir: str, split_name: str) -> Optional[Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]]:
     """
-    Load a cached dataset from a JSONL file if it exists.
-    
+    Loads a previously cached dataset split from a JSONL-style file.
+
+    Each split file contains:
+        - questions: {qid: question}
+        - relevant_contexts: {qid: doc_id}
+        - corpus: {doc_id: page_content}
+
     Args:
-        cache_dir: Directory containing the cached files
-        split_name: Name of the split (train, val, test)
-        
+        cache_dir (str): Directory where cached files are stored
+        split_name (str): One of 'train', 'val', or 'test'
+
     Returns:
-        Tuple of (questions, relevant_docs) if file exists, None otherwise
+        Optional[Tuple[questions, relevant_contexts, corpus]]:
+            Loaded data if file exists, else None
     """
     filepath = f"{cache_dir}/{split_name}_dataset.jsonl"
     if not os.path.exists(filepath):
@@ -72,10 +115,10 @@ def load_cached_dataset(cache_dir: str, split_name: str) -> Optional[Tuple[Dict[
         with open(filepath, "r") as f:
             data = json.load(f)
 
-        print(f"Loaded cached QA dataset from {filepath}")
+        print(f"✅ Loaded cached QA dataset from {filepath}")
         return data["questions"], data["relevant_contexts"], data["corpus"]
     except Exception as e:
-        print(f"Error loading cached dataset: {e}")
+        print(f"❌ Error loading cached dataset: {e}")
         return None
 
 
@@ -87,7 +130,17 @@ def export_datasets_to_jsonl(
     corpus: Dict[str, str]
 ) -> None:
     """
-    Save each dataset split to disk as JSONL-style (but single-line JSON).
+    Saves a dataset split (train/val/test) to disk in a JSONL-style format.
+
+    Although stored as a single JSON object, the format mimics line-delimited datasets.
+    This is used to preserve testsets generated during pipeline evaluation and QA training.
+
+    Args:
+        output_dir (str): Directory to save the file
+        split_name (str): One of 'train', 'val', or 'test'
+        questions (Dict[str, str]): {qid: question}
+        relevant_contexts (Dict[str, str]): {qid: relevant_doc_id}
+        corpus (Dict[str, str]): {doc_id: page_content}
     """
     data = {
         "questions": questions,

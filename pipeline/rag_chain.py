@@ -1,4 +1,16 @@
-# pipeline/rag_chain.py
+"""
+pipeline/rag_chain.py
+
+This module defines an agentic Retrieval-Augmented Generation (RAG) pipeline using LangGraph.
+It decomposes complex Bible-related queries into sub-questions, retrieves relevant verses using
+contextual compression and re-ranking, then summarizes the context into a final answer.
+
+Key components:
+- Sub-query decomposition via an LLM
+- Contextual retrieval with Cohere Rerank (v3.5)
+- Graph-based orchestration using LangGraph
+- Rich terminal output formatting for responses
+"""
 
 import re
 import json
@@ -25,29 +37,54 @@ from rich.markdown import Markdown
 
 console = Console()
 
+# ──────────────────────────────────────────────────────────────
+# STATE DEFINITION
+# ──────────────────────────────────────────────────────────────
 class State(TypedDict):
     question: str
     context: List[Document]
     response: str
 
-def build_rag_chain(vectorstore, streaming: bool = False):
+class AgenticRAGState(TypedDict):
+    query: str
+    sub_questions: List[str]
+    retrieval_results: List[dict]
+    final_answer: str
 
+# ──────────────────────────────────────────────────────────────
+# MAIN RAG CHAIN CONSTRUCTION
+# ──────────────────────────────────────────────────────────────
+def build_rag_chain(vectorstore, streaming: bool = False):
+    """
+    Constructs a LangGraph-based RAG pipeline that performs:
+    1. Query decomposition into sub-questions.
+    2. Document retrieval using Cohere Rerank contextual compression.
+    3. Chain-of-thought summarization across sub-questions.
+
+    Args:
+        vectorstore: LangChain-compatible vector store (e.g., QdrantVectorStore)
+        streaming (bool): Whether to enable LLM streaming
+
+    Returns:
+        Compiled LangGraph StateGraph
+    """
+
+    # Define a schema for parsing sub-query JSON output
     class SubQueryResponse(BaseModel):
-        """
-        Validated schema for the output of the sub-query decomposition LLM.
-        Ensures that the parsed result contains a list of sub-questions.
-        """
         subQuestions: List[str]
 
     def parse_subquery_response(response_text: str) -> SubQueryResponse:
         """
-        Parses the JSON string from the LLM sub-query splitter into a validated SubQueryResponse object.
+        Extract and validate JSON output of sub-questions from LLM response.
 
         Args:
-            response_text (str): Raw string output from LLM containing a JSON response.
+            response_text (str): Raw LLM output containing JSON object
 
         Returns:
-            SubQueryResponse: Validated and structured list of sub-queries.
+            SubQueryResponse: Parsed response with a list of sub-questions
+
+        Raises:
+            ValueError: If no valid JSON is found
         """
         json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
         if not json_match:
@@ -55,13 +92,13 @@ def build_rag_chain(vectorstore, streaming: bool = False):
         data = json.loads(json_match.group())
         return SubQueryResponse(**data)
 
-
-    # Setup LLM + retriever
+    # Setup LLM and retriever
     llm = ChatOpenAI(model=settings.OPENAI_GENERATION_MODEL, streaming=streaming)
     retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
 
-    # === PROMPTS ===
-
+    # ────────────────
+    # PROMPTS
+    # ────────────────
     decompose_prompt = PromptTemplate.from_template("""
     You are a query decomposition assistant for a Bible question-answering system.
     Break the following multi-part question into simpler, logically independent sub-questions.
@@ -86,20 +123,36 @@ def build_rag_chain(vectorstore, streaming: bool = False):
     Answer:
     """)
 
+    # ────────────────
+    # GRAPH NODES
+    # ────────────────
 
-    # === GRAPH NODES ===
+    def decompose_query(state: dict) -> dict:
+        """
+        Decomposes a user query into multiple sub-questions using an LLM.
 
-    def decompose_query(state):
+        Args:
+            state (dict): Current state containing the main query.
+
+        Returns:
+            dict: Updated state with sub_questions
+        """
         query = state["query"]
         messages = [HumanMessage(content=decompose_prompt.format(query=query))]
         result = llm.invoke(messages).content
         sub_questions = parse_subquery_response(result).subQuestions
         return {**state, "sub_questions": sub_questions}
 
-    # ──────────────────────────────────────────────────────────────
-    # 🔹 Contextual-compression retriever with Cohere-Rerank v3.5
-    # ──────────────────────────────────────────────────────────────
-    def retrieve_context(state):
+    def retrieve_context(state: dict) -> dict:
+        """
+        Retrieves relevant context for each sub-question using contextual compression.
+
+        Args:
+            state (dict): State containing sub-questions
+
+        Returns:
+            dict: Updated state with retrieval results
+        """
         results = []
         compressor = CohereRerank(model="rerank-v3.5", top_n=10)
         compression_retriever = ContextualCompressionRetriever(
@@ -107,29 +160,35 @@ def build_rag_chain(vectorstore, streaming: bool = False):
             base_retriever=retriever,
             search_kwargs={"k": 5},
         )
+
         for q in state["sub_questions"]:
             docs = compression_retriever.invoke(q)
             results.append({"question": q, "docs": docs})
+
         return {**state, "retrieval_results": results}
 
-    def summarize_results(state):
+    def summarize_results(state: dict) -> dict:
+        """
+        Summarizes retrieved passages into a coherent answer.
+
+        Args:
+            state (dict): State containing retrieval results
+
+        Returns:
+            dict: Updated state with `final_answer`
+        """
         combined_docs = []
         for entry in state["retrieval_results"]:
             for doc in entry["docs"]:
                 combined_docs.append(doc.page_content)
+
         joined = "\n\n".join(combined_docs)
         summary = llm.invoke([HumanMessage(content=summarize_prompt.format(docs=joined))]).content
         return {**state, "final_answer": summary}
 
-
-    # === GRAPH DEFINITION ===
-
-    class AgenticRAGState(TypedDict):
-        query: str
-        sub_questions: List[str]
-        retrieval_results: List[dict]
-        final_answer: str
-
+    # ────────────────
+    # GRAPH DEFINITION
+    # ────────────────
     graph_builder = StateGraph(AgenticRAGState)
 
     graph_builder.add_node("decompose", RunnableLambda(decompose_query))
@@ -143,19 +202,28 @@ def build_rag_chain(vectorstore, streaming: bool = False):
 
     return graph_builder.compile()
 
-def print_rag_response(response):
+# ──────────────────────────────────────────────────────────────
+# FORMATTED TERMINAL PRINTING
+# ──────────────────────────────────────────────────────────────
+def print_rag_response(response: dict):
+    """
+    Pretty-prints a full RAG response to the terminal using rich.
+
+    Args:
+        response (dict): Final output state from the graph execution
+    """
     console.rule("[bold blue]Bible Explorer")
 
-    # Query
+    # Main Query
     console.print(f"[bold yellow]Main Query:[/bold yellow] {response['query']}\n")
 
-    # Sub-Questions
+    # Sub-questions
     console.print("[bold green]Sub-Questions:[/bold green]")
     for i, sq in enumerate(response['sub_questions'], 1):
         console.print(f"{i}. {sq}")
     console.print()
 
-    # Documents retrieved for each sub-question
+    # Contextual Documents
     for item in response['retrieval_results']:
         console.rule(f"[bold cyan]🔍 {item['question']}")
         for doc in item['docs']:
@@ -164,6 +232,6 @@ def print_rag_response(response):
             console.print(f"[bold blue]{passage_ref}[/bold blue]")
             console.print(f"{doc.page_content}\n", style="dim")
 
-    # Final synthesized answer
+    # Final Answer
     console.rule("[bold magenta]🧠 Final Answer")
     console.print(Markdown(response['final_answer']))
